@@ -8,6 +8,7 @@ import org.springframework.stereotype.Repository;
 import java.util.Optional;
 import java.util.List;
 
+import com.project.code.Model.Customer;
 @Repository
 public interface CustomerRepository extends JpaRepository<Customer, Long> {
 
