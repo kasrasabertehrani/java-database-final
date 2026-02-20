@@ -1,66 +1,90 @@
 package com.project.code.Service;
 
+import com.project.code.Model.*;
+import com.project.code.Repo.*;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDateTime;
 import java.util.Optional;
 
-import com.project.code.DTO.PlaceOrderRequestDTO;
-import com.project.code.Model.Customer;
-import com.project.code.Repo.CustomerRepository;
-import com.project.code.Repo.InventoryRepository;
-import com.project.code.Repo.OrderDetailsRepository;
-import com.project.code.Repo.OrderItemRepository;
-import com.project.code.Repo.StoreRepository;
-
+@Service
 public class OrderService {
-    @Autowired
-    private ProductRepository productRepository;
 
-    @Autowired
-    private InventoryRepository inventoryRepository;
+    @Autowired private ProductRepository productRepository;
+    @Autowired private InventoryRepository inventoryRepository;
+    @Autowired private CustomerRepository customerRepository;
+    @Autowired private StoreRepository storeRepository;
+    @Autowired private OrderDetailsRepository orderDetailsRepository;
+    @Autowired private OrderItemRepository orderItemRepository;
 
-    @Autowired
-    private CustomerRepository customerRepository;
+    @Transactional
+    public void saveOrder(PlaceOrderRequestDTO request) {
 
-    @Autowired
-    private StoreRepository storeRepository;
+        // 1. Retrieve or Create Customer
+        Customer customer = customerRepository.findByEmail(request.getCustomerEmail())
+            .orElseGet(() -> {
+                Customer newCustomer = new Customer();
+                newCustomer.setName(request.getCustomerName());
+                newCustomer.setEmail(request.getCustomerEmail());
+                newCustomer.setPhone(request.getCustomerPhone());
+                return customerRepository.save(newCustomer);
+            });
 
-    @Autowired
-    private OrderDetailsRepository orderDetailsRepository;
+        // 2. Retrieve Store
+        Store store = storeRepository.findById(request.getStoreId())
+                .orElseThrow(() -> new RuntimeException("Store not found"));
 
-    @Autowired
-    private OrderItemRepository orderItemRepository;
+        // ==========================================
+        // 3. THE MAGIC TRICK: Save the Order FIRST
+        // ==========================================
+        OrderDetails order = new OrderDetails();
+        order.setCustomer(customer);
+        order.setStore(store);
+        order.setDate(LocalDateTime.now());
+        
+        // Save it immediately so MySQL gives it an ID!
+        order = orderDetailsRepository.save(order);
 
-    private PlaceOrderRequestDTO placeOrderRequest;
+        double calculatedTotalPrice = 0.0;
 
-    
-// 1. **saveOrder Method**:
-//    - Processes a customer's order, including saving the order details and associated items.
-//    - Parameters: `PlaceOrderRequestDTO placeOrderRequest` (Request data for placing an order)
-//    - Return Type: `void` (This method doesn't return anything, it just processes the order)
-    public void saveOrder(PlaceOrderRequestDTO placeOrderRequest){
-      Optional<Customer> expectedCustomer = customerRepository.findByEmail(placeOrderRequest.getEmail());
-      if(!expectedCustomer.isPresent()) {
-        Customer customer = new Customer();
-        customer.setName(placeOrderRequest.getName());
-        customer.setPhone(placeOrderRequest.getPhone());
-        customer.setName(placeOrderRequest.getEmail()); 
-      }
+        // 4. Process the Items
+        for (PurchaseProductDTO itemDto : request.getPurchaseProduct()) {
+            
+            // Notice: itemDto.getId() is the Product ID in this specific DTO
+            Product product = productRepository.findById(itemDto.getId())
+                    .orElseThrow(() -> new RuntimeException("Product not found"));
+
+            Inventory inventory = inventoryRepository.findByProductIdAndStoreId(product.getId(), store.getId())
+                    .orElseThrow(() -> new RuntimeException("Inventory not found"));
+
+            // Check and update stock
+            if (inventory.getStockLevel() < itemDto.getQuantity()) {
+                throw new RuntimeException("Not enough stock for: " + product.getName());
+            }
+            inventory.setStockLevel(inventory.getStockLevel() - itemDto.getQuantity());
+            inventoryRepository.save(inventory);
+
+            // ==========================================
+            // 5. Link the Item to the Order
+            // ==========================================
+            OrderItem orderItem = new OrderItem();
+            orderItem.setOrder(order);       // <-- THIS LINKS THEM TOGETHER
+            orderItem.setProduct(product);
+            orderItem.setQuantity(itemDto.getQuantity());
+            
+            double linePrice = product.getPrice() * itemDto.getQuantity();
+            orderItem.setPrice(linePrice);
+            
+            calculatedTotalPrice += linePrice;
+
+            // Save the child item
+            orderItemRepository.save(orderItem);
+        }
+
+        // 6. Update the final price on the parent and save one last time
+        order.setTotalPrice(calculatedTotalPrice);
+        orderDetailsRepository.save(order);
     }
-
-// 2. **Retrieve or Create the Customer**:
-//    - Check if the customer exists by their email using `findByEmail`.
-//    - If the customer exists, use the existing customer; otherwise, create and save a new customer using `customerRepository.save()`.
-
-// 3. **Retrieve the Store**:
-//    - Fetch the store by ID from `storeRepository`.
-//    - If the store doesn't exist, throw an exception. Use `storeRepository.findById()`.
-
-// 4. **Create OrderDetails**:
-//    - Create a new `OrderDetails` object and set customer, store, total price, and the current timestamp.
-//    - Set the order date using `java.time.LocalDateTime.now()` and save the order with `orderDetailsRepository.save()`.
-
-// 5. **Create and Save OrderItems**:
-//    - For each product purchased, find the corresponding inventory, update stock levels, and save the changes using `inventoryRepository.save()`.
-//    - Create and save `OrderItem` for each product and associate it with the `OrderDetails` using `orderItemRepository.save()`.
-
-   
 }
