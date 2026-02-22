@@ -37,6 +37,10 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
 
     Optional<Product> findById(Long id);
 
+    @Modifying
+    @Transactional
+    void deleteByProductId(Long productId);
+
 
 
     // 6. Find by Name Pattern in a specific Store
