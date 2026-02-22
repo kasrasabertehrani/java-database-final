@@ -35,6 +35,8 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
     // Returns Optional because the name might not exist
     Optional<Product> findByName(String name);
 
+    Optional<Product> findById(Long id);
+
 
 
     // 6. Find by Name Pattern in a specific Store
