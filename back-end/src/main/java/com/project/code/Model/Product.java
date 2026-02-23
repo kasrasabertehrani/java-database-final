@@ -6,6 +6,7 @@ import com.fasterxml.jackson.annotation.JsonManagedReference;
 import java.util.List;
 
 @Entity
+@Table(name = "product", uniqueConstraints = @UniqueConstraint(columnNames = "sku"))
 public class Product {
 
     @Id
@@ -23,7 +24,6 @@ public class Product {
     private Double price;
 
     @NotNull
-    @Table(name = "product", uniqueConstraints = @UniqueConstraint(columnNames = "sku"))
     private String sku;
 
     @OneToMany(mappedBy = "product")

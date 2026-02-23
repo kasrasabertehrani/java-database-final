@@ -12,7 +12,7 @@ import com.project.code.Model.Customer;
 @Repository
 public interface CustomerRepository extends JpaRepository<Customer, Long> {
 
-    Optinal<Customer> findByEmail(String email);
+    Optional<Customer> findByEmail(String email);
     List<Customer> findByName(String name);
 
 }
