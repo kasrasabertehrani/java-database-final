@@ -26,7 +26,7 @@ public class Product {
     @NotNull
     private String sku;
 
-    @OneToMany(mappedBy = "product")
+    @OneToMany(mappedBy = "product", fetch = FetchType.EAGER)
     @JsonManagedReference("inventory-product")
     private List<Inventory> inventory;
 
